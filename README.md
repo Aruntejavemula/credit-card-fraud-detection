@@ -1,43 +1,144 @@
-# Credit Card Fraud Detection 
+# Credit Card Fraud Detection
 
-## Problem statement 
+> ML pipeline for detecting fraudulent credit card transactions with class imbalance handling
+> **Best ROC-AUC: 0.98** (XGBoost on imbalanced data)
 
-The problem statement chosen for this project is to predict fraudulent credit card transactions with the help of machine learning models.
+[![Python](https://img.shields.io/badge/Python-3.x-blue.svg)](https://python.org)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-ML-orange.svg)](https://scikit-learn.org)
+[![XGBoost](https://img.shields.io/badge/XGBoost-0.98_ROC--AUC-green.svg)](https://xgboost.readthedocs.io)
+[![Kaggle](https://img.shields.io/badge/Kaggle-ULB_Dataset-20BEFF.svg)](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)
 
-In this project, we will analyse customer-level data which has been collected and analysed during a research collaboration of Worldline and the Machine Learning Group. 
+---
 
-The dataset is taken from the [Kaggle Website](https://www.kaggle.com/mlg-ulb/creditcardfraud) website and it has a total of 2,84,807 transactions, out of which 492 are fraudulent. Since the dataset is highly imbalanced, so it needs to be handled before model building.
+## Overview
 
-## Business Problem Overview
+Banking fraud is estimated to cost over **$30 billion globally** per year. This project builds a complete machine learning pipeline to **automatically classify credit card transactions as fraudulent or legitimate** — evaluating multiple algorithms and addressing the core challenge: extreme class imbalance (only 0.172% of transactions are fraud).
 
-For many banks, retaining high profitable customers is the number one business goal. Banking fraud, however, poses a significant threat to this goal for different banks. In terms of substantial financial losses, trust and credibility, this is a concerning issue to both banks and customers alike.
+---
 
-It has been estimated by [Nilson report](https://nilsonreport.com/upload/content_promo/The_Nilson_Report_Issue_1164.pdf) that by 2020 the banking frauds would account to $30 billion worldwide. With the rise in digital payment channels, the number of fraudulent transactions is also increasing with new and different ways. 
+## The Challenge: Extreme Class Imbalance
 
-In the banking industry, credit card fraud detection using machine learning is not just a trend but a necessity for them to put proactive monitoring and fraud prevention mechanisms in place. Machine learning is helping these institutions to reduce time-consuming manual reviews, costly chargebacks and fees, and denials of legitimate transactions.
+| Metric | Value |
+|--------|-------|
+| Total transactions | 284,807 |
+| Fraudulent | 492 (0.172%) |
+| Legitimate | 284,315 (99.828%) |
+| Features | 30 (V1–V28 PCA + Time + Amount) |
+| Missing values | None |
 
-## Understanding and Defining Fraud
+A naive model that predicts "no fraud" every time scores **99.83% accuracy but catches zero fraud**. Standard accuracy is useless here — this project uses **ROC-AUC** as the primary metric.
 
-Credit card fraud is any dishonest act and behaviour to obtain information without the proper authorization from the account holder for financial gain. Among different ways of frauds, Skimming is the most common one, which is the way of duplicating of information located on the magnetic strip of the card.  Apart from this, the other ways are:
+---
 
-- Manipulation/alteration of genuine cards
-- Creation of counterfeit cards
-- Stolen/lost credit cards
-- Fraudulent telemarketing 
+## Dataset
 
-## Data Dictionary
+- **Source:** [Kaggle — Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) (ULB Machine Learning Group)
+- **Period:** 2 days in September 2013, European cardholders
+- **Features:** V1–V28 are PCA-anonymized (privacy), plus `Time`, `Amount`, and `Class` (1=fraud, 0=legit)
+- **Note:** Dataset file (`creditcard.csv`, ~144MB) not included — download from Kaggle
 
-The dataset can be download using this [link](https://www.kaggle.com/mlg-ulb/creditcardfraud)
+---
 
-The data set includes credit card transactions made by European cardholders over a period of two days in September 2013. Out of a total of 2,84,807 transactions, 492 were fraudulent. This data set is highly unbalanced, with the positive class (frauds) accounting for 0.172% of the total transactions. The data set has also been modified with Principal Component Analysis (PCA) to maintain confidentiality. Apart from ‘time’ and ‘amount’, all the other features (V1, V2, V3, up to V28) are the principal components obtained using PCA. The feature 'time' contains the seconds elapsed between the first transaction in the data set and the subsequent transactions. The feature 'amount' is the transaction amount. The feature 'class' represents class labelling, and it takes the value 1 in cases of fraud and 0 in others.
+## Methodology
 
+### Phase 1 — Data Preparation
+- Train/test split (stratified to preserve class ratio)
+- `StandardScaler` on `Amount` and `Time` (V1–V28 already PCA-scaled)
+- `PowerTransformer` to correct feature skewness
+- IQR-based outlier treatment on fraud class
 
-## Project Pipeline
+### Phase 2 — Model Building on Imbalanced Data
 
-The project pipeline can be briefly summarized in the following four steps:
+| Model | Notes |
+|-------|-------|
+| **Logistic Regression** | GridSearchCV, KFold=5, tuned C parameter, ROC-AUC scoring |
+| **XGBoost** | Gradient boosted trees; handles imbalance natively via scale_pos_weight |
+| **Decision Tree** | Pruned via max_depth; interpretable baseline |
+| **Random Forest** | Ensemble baseline; high resource cost |
 
-- **Data Understanding:** Here, we need to load the data and understand the features present in it. This would help us choose the features that we will need for your final model.
-- **Exploratory data analytics (EDA):** Normally, in this step, we need to perform univariate and bivariate analyses of the data, followed by feature transformations, if necessary. For the current data set, because Gaussian variables are used, we do not need to perform Z-scaling. However, you can check if there is any skewness in the data and try to mitigate it, as it might cause problems during the model-building phase.
-- **Train/Test Split:** Now we are familiar with the train/test split, which we can perform in order to check the performance of our models with unseen data. Here, for validation, we can use the k-fold cross-validation method. We need to choose an appropriate k value so that the minority class is correctly represented in the test folds.
-- **Model-Building/Hyperparameter Tuning:** This is the final step at which we can try different models and fine-tune their hyperparameters until we get the desired level of performance on the given dataset. We should try and see if we get a better model by the various sampling techniques.
-- **Model Evaluation:** We need to evaluate the models using appropriate evaluation metrics. Note that since the data is imbalanced it is is more important to identify which are fraudulent transactions accurately than the non-fraudulent. We need to choose an appropriate evaluation metric which reflects this business goal.
+### Phase 3 — Handling Class Imbalance
+
+**Undersampling:** RandomUnderSampler reduces 284,315 legitimate samples to 492 to match fraud count. Fast but discards 99.8% of data.
+
+**SMOTE:** Synthetic Minority Over-sampling Technique generates new synthetic fraud samples using K-Nearest Neighbors. Preserves all original data — better generalization than undersampling.
+
+### Phase 4 — Threshold Optimization
+- Plot FPR vs TPR across all thresholds
+- Select optimal threshold to maximize fraud recall
+- Default 0.5 threshold is wrong for fraud — lowering it increases recall at cost of more false positives
+
+---
+
+## Results
+
+| Model | Data | Train ROC-AUC | Test ROC-AUC |
+|-------|------|:---:|:---:|
+| Logistic Regression | Imbalanced | ~0.98 | ~0.97 |
+| **XGBoost** | **Imbalanced** | **1.00** | **0.98** |
+| Decision Tree | Imbalanced | ~0.97 | ~0.93 |
+| Random Forest | Imbalanced | ~0.99 | ~0.97 |
+| LR + Undersampling | Balanced (RUS) | ~0.95 | ~0.94 |
+| LR + SMOTE | Balanced (SMOTE) | ~0.97 | ~0.96 |
+
+**Best model: XGBoost — Test ROC-AUC 0.98**
+
+---
+
+## Key Findings
+
+1. **XGBoost wins** — Test ROC-AUC 0.98, 0.01 ahead of Logistic Regression. That margin translates to real savings at banking scale.
+2. **Accuracy is the wrong metric** — ROC-AUC correctly handles severely imbalanced classification.
+3. **Threshold matters** — Optimal decision threshold is a business decision, not a technical default.
+4. **SMOTE beats undersampling** — Undersampling discards 99.8% of data; SMOTE generates synthetic samples while keeping everything.
+5. **V14 is the top predictor** — XGBoost feature importance shows V14 (anonymized PCA component) contributes most to fraud detection.
+6. **KNN/SVM excluded** — KNN is O(n) at inference time (284K rows is too slow); SVM requires expensive kernel tuning at this scale.
+
+---
+
+## Repository Contents
+
+| File | Description |
+|------|-------------|
+| `credit_card_fraud_detection.ipynb` | Main notebook — full pipeline with saved outputs |
+| `Solution-Approach.pdf` | Written solution approach document |
+| `credit-card-fraud-detection-main.zip` | Zipped source archive |
+| `presentation.md` | Presentation-style summary |
+
+---
+
+## Environment
+
+```
+Python        3.x
+scikit-learn  (sklearn)
+xgboost
+imbalanced-learn  (imblearn)
+pandas, numpy, matplotlib, seaborn
+```
+
+**Data file** (not included — download from Kaggle):
+- `creditcard.csv` — 284,807 transactions, ~144MB
+
+---
+
+## Why Not SVM or KNN?
+
+**KNN:** Not memory-efficient at this scale — the algorithm stores all training data and computes distances for every prediction. With 284K rows, inference becomes prohibitively slow.
+
+**SVM:** Computationally expensive kernel optimization at this data size. Not practical without significant infrastructure.
+
+---
+
+## References
+
+Chawla, N. V., et al. (2002). SMOTE: Synthetic minority over-sampling technique. *JAIR, 16*, 321–357.
+
+Chen, T., & Guestrin, C. (2016). XGBoost: A scalable tree boosting system. *KDD 2016*. https://doi.org/10.1145/2939672.2939785
+
+Machine Learning Group — ULB. (2018). *Credit card fraud detection* [Dataset]. Kaggle. https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
+
+Nilson Report. (2019). *Card fraud losses worldwide*. HSN Consultants, Inc.
+
+---
+
+*Author: Arun Teja Vemula*
